@@ -91,7 +91,7 @@ async function requestUrl(options) {
   return { status: 404, json: { status_message: `Unexpected TMDB test request: ${url.pathname}` } };
 }
 
-const source = fs.readFileSync('reel-calendar/main.js', 'utf8');
+const source = fs.readFileSync(require('node:path').join(__dirname, '..', 'main.js'), 'utf8');
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', source)(name => {
   if (name !== 'obsidian') throw new Error(`Unexpected module: ${name}`);
@@ -212,7 +212,43 @@ const app = {
   assert.equal(authRequest.headers.Authorization, 'Bearer test-read-token');
   assert.equal(new URL(authRequest.url).searchParams.has('api_key'), false);
 
-  console.log('Canonical-note, rescheduling, watched-state, and TMDB metadata tests passed');
+  const sourcesPlugin = new ReelCalendarPlugin();
+  sourcesPlugin.app = app;
+  let savedState = { settings: { defaultSource: 'prime' }, viewings: [], migrationVersion: 1 };
+  sourcesPlugin.loadData = async () => structuredClone(savedState);
+  sourcesPlugin.saveData = async value => { savedState = structuredClone(value); };
+  await sourcesPlugin.loadState();
+  assert.deepEqual(sourcesPlugin.getSources().map(item => item.id), ['physical', 'prime', 'free-streaming', 'other']);
+  assert.equal(sourcesPlugin.settings.defaultSource, 'prime', '1.3.1 settings should retain their default');
+  const netflix = await sourcesPlugin.addCustomSource('  Netflix  ');
+  const apple = await sourcesPlugin.addCustomSource('Apple TV+');
+  assert.equal(netflix.label, 'Netflix');
+  await assert.rejects(sourcesPlugin.addCustomSource('NETFLIX'), /already exists/);
+  await assert.rejects(sourcesPlugin.addCustomSource('Physical'), /already exists/);
+  await assert.rejects(sourcesPlugin.addCustomSource('   '), /Enter a name/);
+  await sourcesPlugin.addViewing(first, { date: '2026-11-01', source: netflix.id }, true);
+  await sourcesPlugin.addViewing(first, { date: '2026-11-02', source: apple.id }, true);
+  sourcesPlugin.settings.defaultSource = netflix.id;
+  await sourcesPlugin.saveSettings();
+  await sourcesPlugin.loadState();
+  assert.equal(sourcesPlugin.settings.defaultSource, netflix.id);
+  assert.equal(sourcesPlugin.viewings[0].source, netflix.id, 'custom sources must survive a reload');
+  assert.equal(sourcesPlugin.normaliseSource('netflix'), netflix.id);
+  assert.equal(sourcesPlugin.getSourceLabel(apple.id), 'Apple TV+');
+  const beforeRemoval = structuredClone(sourcesPlugin.viewings);
+  assert.deepEqual(await sourcesPlugin.removeCustomSource(netflix.id), { removed: true, reassigned: 1 });
+  assert.deepEqual(sourcesPlugin.viewings, beforeRemoval.map(item => item.source === netflix.id ? { ...item, source: 'other' } : item));
+  assert.equal(sourcesPlugin.settings.defaultSource, 'other');
+  await sourcesPlugin.loadState();
+  assert.equal(sourcesPlugin.viewings[0].source, 'other', 'reassignment must persist');
+  assert.equal(sourcesPlugin.getSources().some(item => item.id === netflix.id), false);
+  assert.deepEqual(await sourcesPlugin.removeCustomSource('physical'), { removed: false, reassigned: 0 });
+  sourcesPlugin.loadData = async () => ({ defaultSource: 'Amazon Prime' });
+  await sourcesPlugin.loadState();
+  assert.equal(sourcesPlugin.settings.defaultSource, 'prime', 'legacy flat settings must still load');
+  assert.deepEqual(sourcesPlugin.settings.customSources, []);
+
+  console.log('Canonical-note, rescheduling, watched-state, TMDB metadata, custom-source, and migration tests passed');
 })().catch(error => {
   console.error(error);
   process.exit(1);

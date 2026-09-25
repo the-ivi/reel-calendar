@@ -4,7 +4,7 @@
 
 **A poster-rich monthly movie planner that lives inside Obsidian.**
 
-![Release](https://img.shields.io/badge/release-1.3.1-f97316?style=flat-square)
+![Release](https://img.shields.io/badge/release-1.4.0-f97316?style=flat-square)
 ![Obsidian](https://img.shields.io/badge/Obsidian-1.5.0%2B-7c3aed?style=flat-square&logo=obsidian&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-vanilla-f7df1e?style=flat-square&logo=javascript&logoColor=111)
 ![TMDB](https://img.shields.io/badge/TMDB-optional-01b4e4?style=flat-square)
@@ -16,7 +16,7 @@
 Reel Calendar combines a flexible calendar with your existing movie notes. A film keeps one canonical note while the plugin remembers any number of planned or completed viewings, so rewatches never create duplicate notes.
 
 > [!NOTE]
-> Version **1.3.1** fixes a result-picker timing bug that could make the TMDB search reopen after a movie had already been selected.
+> Version **1.4.0** adds user-defined viewing sources and matching calendar filters while retaining all four built-in source options.
 
 ## ✨ Features
 
@@ -29,7 +29,7 @@ Reel Calendar combines a flexible calendar with your existing movie notes. A fil
 | 📝 | One canonical note per film, stored in the folder you choose |
 | 🖼️ | Poster artwork from `cover`, with `poster` retained as a fallback |
 | 🔎 | Optional TMDB search and automatic metadata for newly created notes |
-| 💿 | Physical, Amazon Prime, free-streaming, and other source labels |
+| 💿 | Built-in and user-defined viewing sources with instant calendar filters |
 | 📦 | Optional disc-arrival dates stored with individual calendar entries |
 
 ## 📥 Installation
@@ -49,7 +49,7 @@ Open **Settings → Reel Calendar** and choose:
 - **Movie template** — select your `Movie Template.md`. If it is left empty or cannot be found, Reel Calendar uses the same property layout as the supplied template.
 - **Calendar colours** — use twelve automatic seasonal palettes or inherit the active Obsidian theme in every month.
 - Monday or Sunday as the first day of the week.
-- The default viewing source.
+- Any custom viewing sources you use, such as Netflix, Max, or Apple TV+, and the default source for new entries.
 - Optionally, a TMDB API credential, language, and region for automatic metadata.
 
 Folder and template fields have searchable **Choose** buttons; their locations are not hard-coded.
@@ -147,14 +147,18 @@ Remote posters require an internet connection and remain subject to the image ho
 
 ## 💿 Sources and arrivals
 
-Each calendar viewing can have its own source and optional disc-arrival date. Supported sources are:
+Each calendar viewing can have its own source and optional disc-arrival date. These built-in sources are always available:
 
 - `physical`
 - `prime`
 - `free-streaming`
 - `other`
 
-Prime and free-streaming entries are visibly marked **availability unverified**. Reel Calendar does not claim that a film is currently available.
+In **Settings → Reel Calendar → Viewing sources**, add services such as Netflix, Max, Apple TV+, or any other label that suits your collection. Custom sources appear in the add-viewing menu, can be selected as the default, and receive their own calendar filter and colour. Names are matched case-insensitively, so duplicate labels cannot be created.
+
+Removing a custom source never removes a scheduled viewing. Entries using that source are reassigned to **Other**, and the default source also falls back to **Other** when needed.
+
+Prime, free-streaming, and custom-service entries are marked **availability unverified**. Reel Calendar records where you intend to watch a film; it does not claim that the title is currently available on any service.
 
 ## 🧩 Compatibility
 

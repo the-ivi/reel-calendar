@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
   colourMode: 'monthly',
   firstDayOfWeek: 'monday',
   defaultSource: 'physical',
+  customSources: [],
   tmdbCredential: '',
   tmdbAuthType: 'api-key',
   tmdbLanguage: 'en-GB',
@@ -36,6 +37,14 @@ const SOURCE_LABELS = {
   'free-streaming': 'Free streaming',
   other: 'Other'
 };
+
+const CUSTOM_SOURCE_COLOURS = [
+  'var(--rc-orange)',
+  'var(--rc-blue)',
+  'var(--rc-violet)',
+  'var(--rc-amber)',
+  'var(--rc-green)'
+];
 
 const MONTH_CLASSES = Array.from({ length: 12 }, (_, index) => `rc-month-${index + 1}`);
 
@@ -91,11 +100,17 @@ class ReelCalendarPlugin extends Plugin {
       this.settings = Object.assign({}, DEFAULT_SETTINGS, stored.settings || {});
       this.viewings = Array.isArray(stored.viewings) ? stored.viewings : [];
       this.migrationVersion = Number(stored.migrationVersion || 0);
-      return;
+    } else {
+      this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
+      this.viewings = [];
+      this.migrationVersion = 0;
     }
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
-    this.viewings = [];
-    this.migrationVersion = 0;
+    this.settings.customSources = sanitiseCustomSources(this.settings.customSources);
+    this.settings.defaultSource = normaliseSource(this.settings.defaultSource, this.settings.customSources);
+    this.viewings = this.viewings.map(viewing => ({
+      ...viewing,
+      source: normaliseSource(viewing.source, this.settings.customSources)
+    }));
   }
 
   async saveState() {
@@ -136,6 +151,66 @@ class ReelCalendarPlugin extends Plugin {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
       if (leaf.view && typeof leaf.view.scheduleRender === 'function') leaf.view.scheduleRender();
     }
+  }
+
+  getSources() {
+    const builtIn = Object.entries(SOURCE_LABELS).map(([id, label]) => ({ id, label, builtIn: true }));
+    const custom = sanitiseCustomSources(this.settings.customSources)
+      .map(source => ({ ...source, builtIn: false }));
+    return [...builtIn, ...custom];
+  }
+
+  getSourceLabel(id) {
+    return this.getSources().find(source => source.id === id)?.label || SOURCE_LABELS.other;
+  }
+
+  getSourceColour(id) {
+    const customIndex = this.getSources().filter(source => !source.builtIn)
+      .findIndex(source => source.id === id);
+    return customIndex >= 0 ? CUSTOM_SOURCE_COLOURS[customIndex % CUSTOM_SOURCE_COLOURS.length] : '';
+  }
+
+  normaliseSource(value) {
+    return normaliseSource(value, this.settings.customSources);
+  }
+
+  async addCustomSource(label) {
+    const cleanLabel = cleanSourceLabel(label);
+    if (!cleanLabel) throw new Error('Enter a name for the custom source');
+    if (this.getSources().some(source => source.label.localeCompare(cleanLabel, undefined, { sensitivity: 'base' }) === 0)) {
+      throw new Error(`A source named “${cleanLabel}” already exists`);
+    }
+
+    const usedIds = new Set(this.getSources().map(source => source.id));
+    const baseId = `custom-${sourceSlug(cleanLabel) || 'source'}`;
+    let id = baseId;
+    let suffix = 2;
+    while (usedIds.has(id)) {
+      id = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+
+    const source = { id, label: cleanLabel };
+    this.settings.customSources = [...sanitiseCustomSources(this.settings.customSources), source];
+    await this.saveSettings();
+    return source;
+  }
+
+  async removeCustomSource(id) {
+    const source = sanitiseCustomSources(this.settings.customSources).find(item => item.id === id);
+    if (!source) return { removed: false, reassigned: 0 };
+
+    let reassigned = 0;
+    this.viewings = this.viewings.map(viewing => {
+      if (viewing.source !== id) return viewing;
+      reassigned += 1;
+      return { ...viewing, source: 'other' };
+    });
+    this.settings.customSources = sanitiseCustomSources(this.settings.customSources)
+      .filter(item => item.id !== id);
+    if (this.settings.defaultSource === id) this.settings.defaultSource = 'other';
+    await this.saveSettings();
+    return { removed: true, reassigned };
   }
 
   getMovieNotes() {
@@ -295,7 +370,7 @@ class ReelCalendarPlugin extends Plugin {
       filePath: file.path,
       date,
       arrivalDate: normaliseDate(data.arrivalDate),
-      source: normaliseSource(data.source),
+      source: this.normaliseSource(data.source),
       watched: false
     };
     this.viewings.push(viewing);
@@ -412,7 +487,7 @@ class ReelCalendarPlugin extends Plugin {
         filePath: file.path,
         date,
         arrivalDate: normaliseDate(frontmatter['arrival-date']),
-        source: normaliseSource(frontmatter.source),
+        source: this.normaliseSource(frontmatter.source),
         watched: frontmatter.watched === true
       });
       changed = true;
@@ -480,6 +555,10 @@ class ReelCalendarView extends ItemView {
     const entries = this.plugin.getCalendarEntries();
     const monthEntries = entries.filter(entry => isSameMonth(entry.date, this.month));
     const monthArrivals = entries.filter(entry => isSameMonth(entry.arrivalDate, this.month));
+    const sourceOptions = this.plugin.getSources();
+    if (this.activeSource !== 'all' && !sourceOptions.some(source => source.id === this.activeSource)) {
+      this.activeSource = 'all';
+    }
     const filtered = this.activeSource === 'all' ? monthEntries : monthEntries.filter(entry => entry.source === this.activeSource);
 
     const header = root.createDiv({ cls: 'rc-header' });
@@ -504,14 +583,14 @@ class ReelCalendarView extends ItemView {
 
     const toolbar = root.createDiv({ cls: 'rc-toolbar' });
     const filters = toolbar.createDiv({ cls: 'rc-filters', attr: { 'aria-label': 'Filter by source' } });
-    for (const source of ['all', 'physical', 'prime', 'free-streaming', 'other']) {
-      const count = source === 'all' ? monthEntries.length : monthEntries.filter(entry => entry.source === source).length;
+    for (const source of [{ id: 'all', label: 'All' }, ...sourceOptions]) {
+      const count = source.id === 'all' ? monthEntries.length : monthEntries.filter(entry => entry.source === source.id).length;
       const button = filters.createEl('button', {
-        cls: `rc-filter${this.activeSource === source ? ' is-active' : ''}`,
-        text: source === 'all' ? 'All' : SOURCE_LABELS[source]
+        cls: `rc-filter${this.activeSource === source.id ? ' is-active' : ''}`,
+        text: source.label
       });
       button.createEl('small', { text: String(count) });
-      button.addEventListener('click', () => { this.activeSource = source; this.render(); });
+      button.addEventListener('click', () => { this.activeSource = source.id; this.render(); });
     }
     const watched = monthEntries.filter(entry => entry.watched).length;
     const progress = toolbar.createDiv({ cls: 'rc-progress' });
@@ -581,9 +660,15 @@ class ReelCalendarView extends ItemView {
     const info = card.createDiv({ cls: 'rc-movie-info' });
     const title = info.createEl('button', { cls: 'rc-movie-title', text: entry.movie.title });
     title.addEventListener('click', () => this.app.workspace.getLeaf('tab').openFile(entry.movie.file));
-    const meta = info.createDiv({ cls: `rc-source rc-source--${entry.source}` });
-    meta.createSpan({ text: SOURCE_LABELS[entry.source] });
-    if (entry.source === 'prime' || entry.source === 'free-streaming') meta.createEl('small', { text: 'availability unverified' });
+    const sourceColour = this.plugin.getSourceColour(entry.source);
+    const meta = info.createDiv({
+      cls: `rc-source rc-source--${entry.source}`,
+      attr: sourceColour ? { style: `--source-colour:${sourceColour}` } : undefined
+    });
+    meta.createSpan({ text: this.plugin.getSourceLabel(entry.source) });
+    if (entry.source === 'prime' || entry.source === 'free-streaming' || entry.source.startsWith('custom-')) {
+      meta.createEl('small', { text: 'availability unverified' });
+    }
 
     const controls = card.createDiv({ cls: 'rc-movie-controls' });
     const watched = controls.createEl('button', { cls: 'rc-watch-toggle', attr: { 'aria-label': entry.watched ? `Mark ${entry.movie.title} unwatched` : `Mark ${entry.movie.title} watched` } });
@@ -632,7 +717,7 @@ class ViewingModal extends Modal {
   constructor(app, plugin, suggestedDate) {
     super(app);
     this.plugin = plugin;
-    this.data = { selectedFile: null, tmdbMovie: null, title: '', date: localIsoDate(suggestedDate), arrivalDate: '', source: plugin.settings.defaultSource, cover: '' };
+    this.data = { selectedFile: null, tmdbMovie: null, title: '', date: localIsoDate(suggestedDate), arrivalDate: '', source: plugin.normaliseSource(plugin.settings.defaultSource), cover: '' };
   }
 
   onOpen() {
@@ -703,7 +788,7 @@ class ViewingModal extends Modal {
     });
 
     new Setting(contentEl).setName('Source').addDropdown(dropdown => {
-      Object.entries(SOURCE_LABELS).forEach(([value, label]) => dropdown.addOption(value, label));
+      this.plugin.getSources().forEach(source => dropdown.addOption(source.id, source.label));
       dropdown.setValue(this.data.source).onChange(value => { this.data.source = value; });
     });
 
@@ -862,8 +947,53 @@ class ReelCalendarSettingTab extends PluginSettingTab {
       .setValue(this.plugin.settings.firstDayOfWeek)
       .onChange(async value => { this.plugin.settings.firstDayOfWeek = value; await this.plugin.saveSettings(); }));
 
+    containerEl.createEl('h3', { text: 'Viewing sources' });
+    containerEl.createEl('p', {
+      cls: 'setting-item-description',
+      text: 'Physical, Amazon Prime, Free streaming, and Other are always available. Add streaming services or any other filters you use.'
+    });
+
+    let pendingSourceName = '';
+    const addSource = async () => {
+      try {
+        const source = await this.plugin.addCustomSource(pendingSourceName);
+        new Notice(`${source.label} added as a viewing source`);
+        this.display();
+      } catch (error) {
+        new Notice(error.message || 'Reel Calendar could not add that source');
+      }
+    };
+    new Setting(containerEl)
+      .setName('Add custom source')
+      .setDesc('For example Netflix, Max, Apple TV+, or a local cinema.')
+      .addText(text => {
+        text.setPlaceholder('Netflix').onChange(value => { pendingSourceName = value; });
+        text.inputEl.addEventListener('keydown', event => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          addSource();
+        });
+      })
+      .addButton(button => button.setButtonText('Add').setCta().onClick(addSource));
+
+    for (const source of this.plugin.getSources().filter(item => !item.builtIn)) {
+      new Setting(containerEl)
+        .setName(source.label)
+        .setDesc('Custom source. Removing it keeps its viewings and changes their source to Other.')
+        .addButton(button => button.setButtonText('Remove').setWarning().onClick(async () => {
+          const result = await this.plugin.removeCustomSource(source.id);
+          const suffix = result.reassigned === 1
+            ? ' One viewing was changed to Other.'
+            : result.reassigned > 1
+              ? ` ${result.reassigned} viewings were changed to Other.`
+              : '';
+          new Notice(`${source.label} removed.${suffix}`);
+          this.display();
+        }));
+    }
+
     new Setting(containerEl).setName('Default source').addDropdown(dropdown => {
-      Object.entries(SOURCE_LABELS).forEach(([value, label]) => dropdown.addOption(value, label));
+      this.plugin.getSources().forEach(source => dropdown.addOption(source.id, source.label));
       dropdown.setValue(this.plugin.settings.defaultSource).onChange(async value => { this.plugin.settings.defaultSource = value; await this.plugin.saveSettings(); });
     });
 
@@ -977,11 +1107,59 @@ function normaliseDate(value) {
   return `${match[1]}-${match[2]}-${match[3]}`;
 }
 
-function normaliseSource(value) {
-  const source = String(value || 'other').toLowerCase().trim().replace(/[ _]+/g, '-');
+function normaliseSource(value, customSources = []) {
+  const raw = String(value || 'other').trim();
+  const cleanRaw = cleanSourceLabel(raw);
+  const source = sourceSlug(raw);
   if (source === 'amazon-prime' || source === 'amazon' || source === 'prime-video') return 'prime';
   if (source === 'free' || source === 'tubi') return 'free-streaming';
-  return SOURCE_LABELS[source] ? source : 'other';
+  if (SOURCE_LABELS[source]) return source;
+  const custom = sanitiseCustomSources(customSources).find(item =>
+    item.id === source || item.id === raw || item.label.localeCompare(cleanRaw, undefined, { sensitivity: 'base' }) === 0
+  );
+  return custom?.id || 'other';
+}
+
+function cleanSourceLabel(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+}
+
+function sourceSlug(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function sanitiseCustomSources(values) {
+  if (!Array.isArray(values)) return [];
+  const sources = [];
+  const usedIds = new Set(Object.keys(SOURCE_LABELS));
+  const usedLabels = new Set(Object.values(SOURCE_LABELS).map(label => label.toLocaleLowerCase()));
+
+  for (const value of values) {
+    const label = cleanSourceLabel(typeof value === 'string' ? value : value?.label);
+    const labelKey = label.toLocaleLowerCase();
+    if (!label || usedLabels.has(labelKey)) continue;
+
+    const storedId = typeof value === 'object' ? String(value?.id || '') : '';
+    const safeStoredId = /^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(storedId) ? storedId : '';
+    const baseId = safeStoredId || `custom-${sourceSlug(label) || 'source'}`;
+    let id = baseId;
+    let suffix = 2;
+    while (usedIds.has(id)) {
+      id = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+
+    sources.push({ id, label });
+    usedIds.add(id);
+    usedLabels.add(labelKey);
+  }
+  return sources;
 }
 
 function normaliseTitle(value) { return String(value || '').trim().toLocaleLowerCase().replace(/\s+/g, ' '); }

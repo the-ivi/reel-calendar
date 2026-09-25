@@ -438,3 +438,6 @@
   .rc-poster { height: 58px; width: 42px; }
   .rc-source small { display: inline; font-size: inherit; margin-left: 5px; opacity: .65; }
 }
+.rc-hide-inline-title .inline-title {
+  display: none !important;
+}

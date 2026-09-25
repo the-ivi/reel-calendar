@@ -4,7 +4,7 @@
 
 **A poster-rich monthly movie planner that lives inside Obsidian.**
 
-![Release](https://img.shields.io/badge/release-1.4.0-f97316?style=flat-square)
+![Release](https://img.shields.io/badge/release-1.4.1-f97316?style=flat-square)
 ![Obsidian](https://img.shields.io/badge/Obsidian-1.5.0%2B-7c3aed?style=flat-square&logo=obsidian&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-vanilla-f7df1e?style=flat-square&logo=javascript&logoColor=111)
 ![TMDB](https://img.shields.io/badge/TMDB-optional-01b4e4?style=flat-square)
@@ -16,7 +16,7 @@
 Reel Calendar combines a flexible calendar with your existing movie notes. A film keeps one canonical note while the plugin remembers any number of planned or completed viewings, so rewatches never create duplicate notes.
 
 > [!NOTE]
-> Version **1.4.0** adds user-defined viewing sources and matching calendar filters while retaining all four built-in source options.
+> Version **1.4.1** automatically hides a movie note’s built-in inline title when its `logo` property is filled in. Custom viewing sources from 1.4.0 remain available.
 
 ## ✨ Features
 
@@ -144,6 +144,10 @@ cover: "https://artworks.thetvdb.com/banners/v4/movie/623/posters/66051ff6153d9.
 ```
 
 Remote posters require an internet connection and remain subject to the image host's availability and terms.
+
+## Movie note titles
+
+For notes in your configured movie folder (including subfolders), a non-empty text value in `logo` hides Obsidian’s built-in inline title in Reading view and the editor. Clearing the property restores the normal title visibility. Your movie template is excluded. Filenames, tab titles, and headings written in the note stay unchanged; this does not render the logo image itself or check whether the image URL is reachable. Disabling Reel Calendar restores normal title visibility.
 
 ## 💿 Sources and arrivals
 

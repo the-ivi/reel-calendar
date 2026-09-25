@@ -248,7 +248,66 @@ const app = {
   assert.equal(sourcesPlugin.settings.defaultSource, 'prime', 'legacy flat settings must still load');
   assert.deepEqual(sourcesPlugin.settings.customSources, []);
 
-  console.log('Canonical-note, rescheduling, watched-state, TMDB metadata, custom-source, and migration tests passed');
+  const titlePlugin = new ReelCalendarPlugin();
+  const workspaceEvents = {};
+  const metadataEvents = {};
+  const leaves = [];
+  function noteLeaf(path, logo) {
+    const classes = new Set();
+    const leaf = { view: {
+      file: new TFile(path, { logo }),
+      containerEl: { classList: {
+        toggle: (name, enabled) => enabled ? classes.add(name) : classes.delete(name),
+        remove: name => classes.delete(name)
+      } }
+    }, hidden: () => classes.has('rc-hide-inline-title') };
+    leaves.push(leaf);
+    return leaf;
+  }
+  const movieLeaf = noteLeaf('Media/Movies/Dracula.md', 'https://example.com/logo.png');
+  const splitLeaf = noteLeaf('Media/Movies/Classics/Dracula.md', '[[Dracula logo.png]]');
+  const otherLeaf = noteLeaf('Media/MoviesExtra/Other.md', 'logo.png');
+  const templateLeaf = noteLeaf('Media/Movies/Template.md', 'logo.png');
+  titlePlugin.app = {
+    ...app,
+    vault: { ...app.vault, on: () => ({}) },
+    metadataCache: { ...app.metadataCache, on: (name, callback) => { metadataEvents[name] = callback; } },
+    workspace: {
+      getLeavesOfType: type => type === 'markdown' ? leaves : [],
+      on: (name, callback) => { workspaceEvents[name] = callback; },
+      onLayoutReady: callback => { workspaceEvents.ready = callback; },
+      detachLeavesOfType() {}
+    }
+  };
+  titlePlugin.loadData = async () => ({ settings: { movieFolder: 'Media/Movies', templatePath: 'Media/Movies/Template.md' }, migrationVersion: 1 });
+  for (const name of ['registerView', 'addRibbonIcon', 'addCommand', 'addSettingTab', 'registerEvent']) titlePlugin[name] = () => {};
+  await titlePlugin.onload();
+  await workspaceEvents.ready();
+  assert.equal(movieLeaf.hidden(), true);
+  assert.equal(splitLeaf.hidden(), true, 'all open movie panes and subfolders should update');
+  assert.equal(otherLeaf.hidden(), false, 'similarly named folders must not match');
+  assert.equal(templateLeaf.hidden(), false, 'the template must be excluded');
+  for (const empty of ['', '  ', null, undefined, false, [], {}]) {
+    movieLeaf.view.file.frontmatter.logo = empty;
+    metadataEvents.changed(movieLeaf.view.file);
+    assert.equal(movieLeaf.hidden(), false, 'empty or non-text logo properties must retain the title');
+  }
+  movieLeaf.view.file.frontmatter.logo = 'logo.png';
+  metadataEvents.changed(movieLeaf.view.file);
+  assert.equal(movieLeaf.hidden(), true, 'adding a logo should hide the title without reopening');
+  movieLeaf.view.file = new TFile('Media/Movies/No logo.md');
+  workspaceEvents['file-open']();
+  assert.equal(movieLeaf.hidden(), false, 'reusing a pane must not leave its next title hidden');
+  titlePlugin.settings.movieFolder = 'Other';
+  titlePlugin.refreshViews();
+  assert.equal(splitLeaf.hidden(), false, 'changing movie folder should restore titles');
+  titlePlugin.settings.movieFolder = 'Media/Movies';
+  workspaceEvents['layout-change']();
+  assert.equal(splitLeaf.hidden(), true);
+  await titlePlugin.onunload();
+  assert.equal(splitLeaf.hidden(), false, 'disabling the plugin must remove title overrides');
+
+  console.log('Canonical-note, rescheduling, watched-state, TMDB metadata, custom-source, migration, and note-title lifecycle tests passed');
 })().catch(error => {
   console.error(error);
   process.exit(1);

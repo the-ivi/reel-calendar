@@ -84,6 +84,9 @@ class ReelCalendarPlugin extends Plugin {
     }));
     this.registerEvent(this.app.vault.on('delete', file => this.handleDelete(file)));
     this.registerEvent(this.app.vault.on('rename', (file, oldPath) => this.handleRename(file, oldPath)));
+    for (const event of ['file-open', 'active-leaf-change', 'layout-change']) {
+      this.registerEvent(this.app.workspace.on(event, () => this.refreshNoteTitles()));
+    }
     this.app.workspace.onLayoutReady(async () => {
       await this.migrateLegacyNotes();
       this.refreshViews();
@@ -91,6 +94,9 @@ class ReelCalendarPlugin extends Plugin {
   }
 
   async onunload() {
+    for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+      leaf.view.containerEl.classList.remove('rc-hide-inline-title');
+    }
     this.app.workspace.detachLeavesOfType(VIEW_TYPE);
   }
 
@@ -148,8 +154,21 @@ class ReelCalendarPlugin extends Plugin {
   }
 
   refreshViews() {
+    this.refreshNoteTitles();
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
       if (leaf.view && typeof leaf.view.scheduleRender === 'function') leaf.view.scheduleRender();
+    }
+  }
+
+  refreshNoteTitles() {
+    const folder = cleanPath(this.settings.movieFolder);
+    for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+      const { file, containerEl } = leaf.view;
+      const logo = file && this.app.metadataCache.getFileCache(file)?.frontmatter?.logo;
+      const hasLogo = typeof logo === 'string' && logo.trim().length > 0;
+      const isMovie = Boolean(folder && file?.path.startsWith(`${folder}/`)
+        && file.path !== this.settings.templatePath);
+      containerEl.classList.toggle('rc-hide-inline-title', isMovie && hasLogo);
     }
   }
 

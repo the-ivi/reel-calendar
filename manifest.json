@@ -1,0 +1,9 @@
+{
+  "id": "reel-calendar",
+  "name": "Reel Calendar",
+  "version": "1.3.1",
+  "minAppVersion": "1.5.0",
+  "description": "A monthly movie planner with canonical notes, posters, and optional TMDB metadata.",
+  "author": "The IVI",
+  "isDesktopOnly": false
+}

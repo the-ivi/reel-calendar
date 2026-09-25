@@ -1,0 +1,10 @@
+# Obsidian plugin state (may contain a TMDB credential)
+data.json
+
+# Local development and operating-system files
+node_modules/
+.DS_Store
+Thumbs.db
+
+# Packaged releases
+*.zip

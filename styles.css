@@ -368,6 +368,7 @@
 
 .rc-arrival {
   align-items: center;
+  cursor: grab;
   background: color-mix(in srgb, var(--rc-amber) 6%, transparent);
   border: 1px dashed color-mix(in srgb, var(--rc-amber) 34%, transparent);
   border-radius: 7px;
@@ -383,6 +384,7 @@
   text-transform: uppercase;
 }
 
+.rc-arrival.is-dragging { cursor: grabbing; opacity: .25; transform: scale(.97); }
 .rc-arrival svg { flex: 0 0 auto; height: 11px; width: 11px; }
 
 .rc-empty {

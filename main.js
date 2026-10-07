@@ -458,6 +458,19 @@ class ReelCalendarPlugin extends Plugin {
     return true;
   }
 
+  async moveArrival(id, newDate) {
+    const viewing = this.viewings.find(item => item.id === id);
+    const date = normaliseDate(newDate);
+    if (!viewing || !viewing.arrivalDate || !date || viewing.arrivalDate === date) return false;
+
+    viewing.arrivalDate = date;
+    await this.saveState();
+    this.refreshViews();
+    const title = displayTitle(this.app.vault.getAbstractFileByPath(viewing.filePath), this.app);
+    new Notice(`${title} delivery moved to ${friendlyDate(date)}`);
+    return true;
+  }
+
   async createMovieFromTemplate(title, cover = '', tmdbMovie = null) {
     const folder = cleanPath(this.settings.movieFolder);
     if (!folder) throw new Error('Choose a movie notes folder first');
@@ -546,6 +559,7 @@ class ReelCalendarView extends ItemView {
     this.activeSource = 'all';
     this.renderTimer = null;
     this.draggedViewingId = null;
+    this.draggedArrivalId = null;
   }
 
   getViewType() { return VIEW_TYPE; }
@@ -641,7 +655,23 @@ class ReelCalendarView extends ItemView {
       addDay.addEventListener('click', () => this.plugin.openViewingModal(date));
       for (const entry of dayEntries) this.renderMovieCard(dayEl, entry);
       for (const entry of dayArrivals) {
-        const arrival = dayEl.createDiv({ cls: 'rc-arrival' });
+        const arrival = dayEl.createDiv({
+          cls: 'rc-arrival',
+          attr: { draggable: 'true', title: 'Drag to another date to move delivery' }
+        });
+        arrival.addEventListener('dragstart', event => {
+          this.draggedViewingId = null;
+          this.draggedArrivalId = entry.id;
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', `arrival:${entry.id}`);
+          event.dataTransfer.setData('application/x-reel-calendar-arrival', entry.id);
+          arrival.addClass('is-dragging');
+        });
+        arrival.addEventListener('dragend', () => {
+          this.draggedArrivalId = null;
+          arrival.removeClass('is-dragging');
+          this.clearDropTargets();
+        });
         setIcon(arrival.createSpan(), 'package');
         arrival.createSpan({ text: `${entry.movie.title} arrives` });
       }
@@ -660,14 +690,16 @@ class ReelCalendarView extends ItemView {
         event.preventDefault();
         return;
       }
+      this.draggedArrivalId = null;
       this.draggedViewingId = entry.id;
       event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', entry.id);
+      event.dataTransfer.setData('text/plain', `viewing:${entry.id}`);
       event.dataTransfer.setData('application/x-reel-calendar-viewing', entry.id);
       card.addClass('is-dragging');
     });
     card.addEventListener('dragend', () => {
       this.draggedViewingId = null;
+      this.draggedArrivalId = null;
       card.removeClass('is-dragging');
       this.clearDropTargets();
     });
@@ -700,7 +732,7 @@ class ReelCalendarView extends ItemView {
 
   bindDropTarget(dayEl, date) {
     dayEl.addEventListener('dragover', event => {
-      if (!this.draggedViewingId) return;
+      if (!this.draggedViewingId && !this.draggedArrivalId) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
       dayEl.addClass('is-drop-target');
@@ -710,12 +742,20 @@ class ReelCalendarView extends ItemView {
     });
     dayEl.addEventListener('drop', async event => {
       event.preventDefault();
-      const id = this.draggedViewingId
+      const plain = event.dataTransfer.getData('text/plain');
+      const arrivalId = this.draggedArrivalId
+        || event.dataTransfer.getData('application/x-reel-calendar-arrival')
+        || (plain.startsWith('arrival:') ? plain.slice('arrival:'.length) : '');
+      const viewingId = this.draggedViewingId
         || event.dataTransfer.getData('application/x-reel-calendar-viewing')
-        || event.dataTransfer.getData('text/plain');
+        || (plain.startsWith('viewing:') ? plain.slice('viewing:'.length) : '');
+
       this.draggedViewingId = null;
+      this.draggedArrivalId = null;
       this.clearDropTargets();
-      if (id) await this.plugin.moveViewing(id, date);
+
+      if (arrivalId) await this.plugin.moveArrival(arrivalId, date);
+      else if (viewingId) await this.plugin.moveViewing(viewingId, date);
     });
   }
 

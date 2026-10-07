@@ -142,7 +142,7 @@ const app = {
   assert.equal(files.size, 1, 'only one movie note should exist');
   assert.equal(first.frontmatter.cover, 'https://example.com/dracula.jpg');
 
-  await plugin.addViewing(first, { date: '2026-10-01', source: 'physical' }, true);
+  await plugin.addViewing(first, { date: '2026-10-01', arrivalDate: '2026-10-12', source: 'physical' }, true);
   await plugin.addViewing(first, { date: '2027-02-14', source: 'prime' }, true);
   await plugin.addViewing(first, { date: '2027-02-14', source: 'prime' }, true);
   assert.equal(plugin.viewings.length, 2, 'a duplicate film/date pair should not duplicate the viewing');
@@ -153,6 +153,13 @@ const app = {
   const validMove = await plugin.moveViewing(plugin.viewings[0].id, '2026-10-02');
   assert.equal(validMove, true);
   assert.equal(plugin.viewings[0].date, '2026-10-02', 'a valid drag should reschedule the viewing');
+
+  const sameArrivalMove = await plugin.moveArrival(plugin.viewings[0].id, '2026-10-12');
+  assert.equal(sameArrivalMove, false, 'dropping a delivery onto its existing date should be a no-op');
+  const validArrivalMove = await plugin.moveArrival(plugin.viewings[0].id, '2026-10-14');
+  assert.equal(validArrivalMove, true);
+  assert.equal(plugin.viewings[0].arrivalDate, '2026-10-14', 'a delivery drag should change only the arrival date');
+  assert.equal(plugin.viewings[0].date, '2026-10-02', 'moving a delivery must not reschedule the viewing');
 
   await plugin.toggleViewing(plugin.viewings[0].id);
   assert.equal(first.frontmatter.last_watched, '2026-10-02');
@@ -307,7 +314,7 @@ const app = {
   await titlePlugin.onunload();
   assert.equal(splitLeaf.hidden(), false, 'disabling the plugin must remove title overrides');
 
-  console.log('Canonical-note, rescheduling, watched-state, TMDB metadata, custom-source, migration, and note-title lifecycle tests passed');
+  console.log('Canonical-note, viewing/delivery rescheduling, watched-state, TMDB metadata, custom-source, migration, and note-title lifecycle tests passed');
 })().catch(error => {
   console.error(error);
   process.exit(1);

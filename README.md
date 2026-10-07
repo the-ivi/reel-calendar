@@ -4,7 +4,7 @@
 
 **A poster-rich monthly movie planner that lives inside Obsidian.**
 
-![Release](https://img.shields.io/badge/release-1.4.1-f97316?style=flat-square)
+![Release](https://img.shields.io/badge/release-1.4.2-f97316?style=flat-square)
 ![Obsidian](https://img.shields.io/badge/Obsidian-1.5.0%2B-7c3aed?style=flat-square&logo=obsidian&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-vanilla-f7df1e?style=flat-square&logo=javascript&logoColor=111)
 ![TMDB](https://img.shields.io/badge/TMDB-optional-01b4e4?style=flat-square)
@@ -16,7 +16,7 @@
 Reel Calendar combines a flexible calendar with your existing movie notes. A film keeps one canonical note while the plugin remembers any number of planned or completed viewings, so rewatches never create duplicate notes.
 
 > [!NOTE]
-> Version **1.4.1** automatically hides a movie note’s built-in inline title when its `logo` property is filled in. Custom viewing sources from 1.4.0 remain available.
+> Version **1.4.2** lets disc-arrival markers be dragged between calendar dates independently of the movie viewing. The inline-title behaviour from 1.4.1 and custom viewing sources from 1.4.0 remain available.
 
 ## ✨ Features
 
@@ -30,7 +30,7 @@ Reel Calendar combines a flexible calendar with your existing movie notes. A fil
 | 🖼️ | Poster artwork from `cover`, with `poster` retained as a fallback |
 | 🔎 | Optional TMDB search and automatic metadata for newly created notes |
 | 💿 | Built-in and user-defined viewing sources with instant calendar filters |
-| 📦 | Optional disc-arrival dates stored with individual calendar entries |
+| 📦 | Optional disc-arrival dates that can be dragged to a new delivery date |
 
 ## 📥 Installation
 
@@ -110,7 +110,7 @@ Removing an entry removes only that calendar viewing; the movie note is kept.
 
 On desktop, drag any movie card onto another day in the displayed month to reschedule it. The canonical movie note is not moved, renamed, or duplicated—only the viewing date changes. If the destination already contains the same film, Reel Calendar rejects the move rather than creating a duplicate.
 
-If a completed viewing is moved, `last_watched` is recalculated from its new date.
+If a completed viewing is moved, `last_watched` is recalculated from its new date. Disc-arrival strips can also be dragged onto another day; this changes only `arrivalDate` and leaves the viewing date untouched.
 
 ## 🖼️ Template and posters
 

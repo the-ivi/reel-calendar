@@ -13,7 +13,7 @@
 
 </div>
 
-Reel Calendar combines a flexible calendar with your existing movie notes. A film keeps one canonical note while the plugin remembers any number of planned or completed viewings, so rewatches never create duplicate notes.
+Reel Calendar combines a flexible calendar with your existing movie notes. A film keeps one canonical note while the plugin remembers any number of planned or completed viewings, so rewatches never create duplicate notes. This plugin works best with Pretty Properties.
 
 > [!NOTE]
 > Version **1.4.2** lets disc-arrival markers be dragged between calendar dates independently of the movie viewing. The inline-title behaviour from 1.4.1 and custom viewing sources from 1.4.0 remain available.
@@ -39,7 +39,7 @@ Reel Calendar combines a flexible calendar with your existing movie notes. A fil
 3. In Obsidian, open **Settings → Community plugins** and enable **Reel Calendar**. If it was already enabled, reload the plugin or restart Obsidian.
 4. Select the calendar icon in the left ribbon, or run **Reel Calendar: Open calendar**.
 
-Reel Calendar opens directly to the current month and highlights today. It contains no pre-filled films or date-specific onboarding data.
+Reel Calendar opens directly to the current month and highlights the current date.
 
 ## ⚙️ First-time setup
 
@@ -137,10 +137,10 @@ logo:
 ---
 ```
 
-Reel Calendar reads its poster from `cover`, with the older `poster` property retained as a compatibility fallback. Direct TVDB artwork URLs work:
+Reel Calendar reads its poster from `cover`, with the older `poster` property retained as a compatibility fallback. Direct TMDB artwork URLs work:
 
 ```yaml
-cover: "https://artworks.thetvdb.com/banners/v4/movie/623/posters/66051ff6153d9.jpg"
+cover: "https://media.themoviedb.org/t/p/w220_and_h330_face/pTE8yEPRvwgpKkXvriQnxIhqRl4.jpg"
 ```
 
 Remote posters require an internet connection and remain subject to the image host's availability and terms.
@@ -168,7 +168,7 @@ Prime, free-streaming, and custom-service entries are marked **availability unve
 
 Reel Calendar uses only Obsidian's public vault, metadata, view, modal, and settings APIs. Its CSS is scoped under `.reel-calendar-view` or `.reel-calendar-modal`; it does not alter Obsidian prototypes, global Markdown rendering, or another plugin's data.
 
-This avoids known integration points with Book Search, Hearth, Pretty Properties, QuickAdd, Style Settings, Excalidraw, ABC Music Notation, and Chord Sheets. When theme-colour mode is selected, Reel Calendar uses Obsidian CSS variables, so active themes and Style Settings customisations flow through naturally.
+When theme-colour mode is selected, Reel Calendar uses Obsidian CSS variables, so active themes and Style Settings customisations flow through naturally.
 
 ## ⌨️ Commands
 
